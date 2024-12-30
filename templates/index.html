@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Message Generator</h1>
+    <form action="{{ url_for('generate') }}" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="contacts">Contacts CSV:</label>
+            <input type="file" name="contacts" id="contacts" accept=".csv" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="templates">Templates CSV:</label>
+            <input type="file" name="templates" id="templates" accept=".csv" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="dnc">DNC List (optional):</label>
+            <input type="file" name="dnc" id="dnc" accept=".csv">
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="split" value="yes">
+                Split output file
+            </label>
+            <input type="number" name="messages_per_file" value="1000" min="1" class="split-input">
+        </div>
+        
+        <button type="submit">Generate Messages</button>
+    </form>
+{% endblock %}

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Message Generator</title>
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+    <py-env>
+        - csv
+        - random
+        - re
+    </py-env>
+    <style>
+        /* Your existing CSS stays the same */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Message Generator</h1>
+        
+        <div class="input-group">
+            <label for="contacts">Contacts CSV:</label>
+            <input type="file" id="contacts" accept=".csv" class="file-input">
+        </div>
+
+        <div class="input-group">
+            <label for="templates">Templates CSV:</label>
+            <input type="file" id="templates" accept=".csv" class="file-input">
+        </div>
+
+        <div class="input-group">
+            <label for="dnc">DNC List CSV (optional):</label>
+            <input type="file" id="dnc" accept=".csv" class="file-input">
+        </div>
+
+        <button id="generateBtn" class="generate-btn" py-click="generate_messages()">Generate Messages</button>
+
+        <div id="status"></div>
+    </div>
+
+    <py-script>
+import csv
+import random
+import re
+from io import StringIO
+from js import document, console, window, URL, Blob
+
+def standardize_phone(phone):
+    return re.sub(r'\D', '', str(phone))
+
+def is_valid_phone(phone):
+    if not phone:
+        return False
+    if "landline excluded" in str(phone).lower():
+        return False
+    phone = standardize_phone(phone)
+    return 7 <= len(phone) <= 15
+
+def parse_spintax(text):
+    while '[' in text:
+        start = text.find('[')
+        end = text.find(']', start)
+        if end == -1:
+            break
+        options = text[start+1:end].split('/')
+        replacement = random.choice(options)
+        text = text[:start] + replacement + text[end+1:]
+    return text
+
+def update_status(message, type="info"):
+    status_div = document.getElementById('status')
+    status_div.innerHTML = f'<div class="status-{type}">{message}</div>'
+
+def process_messages(contacts_data, templates_data, dnc_data=None):
+    messages = []
+    
+    # Process DNC list
+    dnc_numbers = set()
+    if dnc_data:
+        dnc_reader = csv.reader(StringIO(dnc_data))
+        for row in dnc_reader:
+            if row:
+                phone = standardize_phone(row[0])
+                if phone and not phone.lower() in ['phone', 'telephone', 'number']:
+                    dnc_numbers.add(phone)
+    
+    # Process templates
+    templates = []
+    template_reader = csv.reader(StringIO(templates_data))
+    for row in template_reader:
+        if row:
+            templates.extend(row)
+    
+    if not templates:
+        raise ValueError("No templates found in template file.")
+    
+    # Process contacts
+    contacts_file = StringIO(contacts_data)
+    reader = csv.DictReader(contacts_file)
+    
+    for row in reader:
+        phones = []
+        for field in ['phone_1', 'phone_2', 'phone_3']:
+            if field in row:
+                phone = row[field].strip()
+                if is_valid_phone(phone):
+                    phones.append(phone)
+        
+        name = row.get('first_name', '').strip()
+        address = row.get('associated_property_address_line_1', '').strip()
+        
+        for phone in phones:
+            if standardize_phone(phone) not in dnc_numbers:
+                template = random.choice(templates)
+                message = template.replace('{name}', name).replace('{address}', address)
+                message = parse_spintax(message)
+                messages.append({'phone': phone, 'message': message})
+    
+    return messages
+
+def generate_messages(*args, **kwargs):
+    try:
+        btn = document.getElementById('generateBtn')
+        btn.disabled = True
+        update_status("Processing files...", "info")
+        
+        contacts_input = document.getElementById('contacts')
+        templates_input = document.getElementById('templates')
+        dnc_input = document.getElementById('dnc')
+
+        if not contacts_input.files.length or not templates_input.files.length:
+            update_status("Please select both contacts and templates files.", "error")
+            btn.disabled = False
+            return
+
+        def handle_files():
+            try:
+                contacts_file = contacts_input.files.item(0)
+                templates_file = templates_input.files.item(0)
+                dnc_file = dnc_input.files.item(0) if dnc_input.files.length else None
+                
+                contacts_reader = contacts_file.text()
+                templates_reader = templates_file.text()
+                dnc_reader = dnc_file.text() if dnc_file else None
+                
+                messages = process_messages(contacts_reader, templates_reader, dnc_reader)
+                
+                output = StringIO()
+                writer = csv.writer(output)
+                for msg in messages:
+                    writer.writerow([standardize_phone(msg['phone']), msg['message']])
+                
+                csv_content = output.getvalue()
+                
+                blob = Blob.new([csv_content], {type: 'text/csv'})
+                url = URL.createObjectURL(blob)
+                
+                a = document.createElement('a')
+                a.href = url
+                a.download = 'messages.csv'
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+                
+                update_status(f"Successfully generated {len(messages)} messages!", "success")
+                
+            except Exception as e:
+                console.error(str(e))
+                update_status(f"Error: {str(e)}", "error")
+            
+            finally:
+                btn.disabled = False
+        
+        handle_files()
+
+    except Exception as e:
+        console.error(str(e))
+        update_status(f"Error: {str(e)}", "error")
+        btn.disabled = False
+
+# Add error handler
+def handle_error(e):
+    update_status(f"JavaScript Error: {e}", "error")
+
+window.onerror = handle_error
+    </py-script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Generated Files</h1>
+    
+    <div class="stats">
+        <div class="stat-item">
+            <span class="stat-number">{{ messages_created }}</span>
+            <span class="stat-label">Messages Created</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-number">{{ messages_blocked }}</span>
+            <span class="stat-label">Messages Blocked</span>
+        </div>
+    </div>
+    
+    <ul class="file-list">
+        {% for file in files %}
+            <li>
+                <a href="{{ url_for('download', filename=file) }}" download>
+                    {{ file }}
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+    <a href="{{ url_for('index') }}" class="btn">Generate More</a>
+{% endblock %}
